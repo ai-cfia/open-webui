@@ -1378,7 +1378,7 @@
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" on:click|self={() => showTermsModal = false}>
 		<div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full m-4" on:click|stopPropagation>
 			<div class="flex justify-between items-center mb-4">
-				<h2 class="text-xl font-semibold text-gray-900 dark:text-white">Terms of Service</h2>
+				<h2 class="text-xl font-semibold text-gray-900 dark:text-white text-left">Terms of Service</h2>
 				<button
 					type="button"
 					class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -1390,7 +1390,7 @@
 					</svg>
 				</button>
 			</div>
-			<div class="text-gray-700 dark:text-gray-300 space-y-2 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-gray-100 dark:scrollbar-track-gray-700">
+			<div class="text-gray-700 dark:text-gray-300 space-y-2 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-gray-100 dark:scrollbar-track-gray-700 text-left">
 				<!-- Add your terms of service content here -->
 				<h3 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Terms of Use for AMI</h3>
 				<p><strong>Compliance with Guidelines:</strong> All users must adhere to the Treasury Board Secretariat's (TBS) Guidelines on the use of Generative AI within the Public Service.</p>
