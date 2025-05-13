@@ -4,10 +4,10 @@ import json
 def main():
     # curl -X GET https://ami.inspection.alpha.canada.ca/api/v1/knowledge/list \
     # -H "Authorization: Bearer $TOKEN"
-    TOKEN = "your bearer token"
-
+    TOKEN = ""
+    BASE_URL = "http://open-webui:8080"
     response = requests.get(
-        "https://ami.inspection.alpha.canada.ca/api/v1/knowledge/list",
+        BASE_URL + "/api/v1/knowledge/list",
         headers={"Authorization": f"Bearer {TOKEN}"},
     )
 

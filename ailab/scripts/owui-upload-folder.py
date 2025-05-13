@@ -3,8 +3,8 @@ import json
 import os
 
 # Configuration
-BASE_URL = "http://your-open-webui-instance"  # Replace with your Open WebUI URL
-API_KEY = "your-api-key-here"  # Replace with your API key
+BASE_URL = "http://open-webui:8080"  # Replace with your Open WebUI URL
+API_KEY = ""  
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 
@@ -41,6 +41,13 @@ def add_files_to_knowledge_base(file_ids, collection_id):
         if process_response.ok:
             print(f"File added to knowledge base collection '{collection_name}'")
         else:
+            # Handle duplicate content error as acceptable
+            if (
+                process_response.status_code == 400
+                and "Duplicate content detected" in process_response.text
+            ):
+                print(f"Duplicate content detected for file ID {id}. Skipping...")
+                continue
             print(f"Failed to add file to knowledge base: {process_response.text}")
             raise Exception(
                 f"Failed to add file to knowledge base: {process_response.status_code}"
@@ -51,21 +58,12 @@ def add_files_to_knowledge_base(file_ids, collection_id):
 
 def upload_files(file_list):
     file_ids = []
-    # --- Configuration ---
-    BASE_URL = "http://your_api_base_url"  # Replace with your API's base URL
     API_ENDPOINT = "/api/v1/files/"
-    TOKEN = "your_bearer_token"  # Replace with your actual bearer token
-    PROCESS_FILE = False  # Set to False if you don't want processing
-    # ---------------------
+
+    headers = {**HEADERS}
 
     url = f"{BASE_URL}{API_ENDPOINT}"
 
-    headers = {
-        "Authorization": f"Bearer {TOKEN}",
-        # 'Accept': 'application/json' # Good practice, though often not strictly required by requests
-    }
-
-    params = {"process": PROCESS_FILE}
     for file_path in file_list:
         if not os.path.exists(file_path):
             print(f"Error: File not found at {file_path}")
@@ -73,23 +71,20 @@ def upload_files(file_list):
 
         with open(file_path, "rb") as f:
             print(f"Sending POST request to: {url}")
-            print(f"Params: {params}")
-            # print(f"Headers: {headers}") # Uncomment to see headers (be careful with tokens)
-            # print(f"Files payload structure (metadata as JSON string): {files_payload}") # Uncomment to inspect payload structure
-
             response = requests.post(
-                url, headers=headers, params=params, files={"file": f}
+                url, headers=headers, files={"file": (file_path, f, "text/plain")}
             )
 
             # --- Handle Response ---
             print(f"\nStatus Code: {response.status_code}")
             response_json = response.json() if response.status_code == 200 else None
+            print("Response JSON:", response.text)
 
             if response_json and "id" in response_json:
                 file_ids.append(response_json["id"])
                 print(f"File ID: {response_json['id']}")
             else:
-                print("Response JSON:", response_json)
+                print("Response JSON:", json.dumps(response_json, indent=4))
                 print("No file ID found in the response.")
                 raise Exception("File upload failed or no ID returned.")
 
@@ -110,13 +105,14 @@ def get_files_in_dir(directory):
 
 # Example usage
 if __name__ == "__main__":
-    directory = "path/to/your/dir"  # Change to your file path
-    collection_name = "Finesse-Public"  # Change to your collection name
+    directory = ""
+    collection_id = ""
+    collection_name = ""
 
     file_list = get_files_in_dir(directory)
 
     file_ids = upload_files(file_list)
-    add_files_to_knowledge_base(file_ids, collection_name)
-    process_files(file_ids, collection_name)
+    # process_files(file_ids, collection_name)
+    add_files_to_knowledge_base(file_ids, collection_id)
 
     print("Completed Successfully")
