@@ -199,6 +199,10 @@ if __name__ == "__main__":
         with open(uploaded_path, "r") as f:
             uploaded = f.read().splitlines()
     uploaded = [file for file in uploaded if file not in completed]
+    write_log(f"Files to add to knowledge base: {len(uploaded)}")
+    if not uploaded:
+        write_log("No files to add to knowledge base.")
+        exit()
     add_files_to_knowledge_base(uploaded, collection_id, completed_path, errored_path)
 
     write_log("Upload and processing completed.")
