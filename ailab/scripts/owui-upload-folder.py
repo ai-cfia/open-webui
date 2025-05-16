@@ -2,12 +2,13 @@ import requests
 import json
 import os
 from datetime import datetime
+import time
 
 # Configuration
 BASE_URL = "https://ami.inspection.alpha.canada.ca"  # Replace with your Open WebUI URL
 API_KEY = ""  
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
-LOG_PATH = "log.txt"
+LOG_PATH = "owui_log.txt"
 
 def write_log(message):
     print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
@@ -37,8 +38,10 @@ def process_files(file_ids, collection_name):
 
 
 def add_files_to_knowledge_base(file_ids, collection_id, completed_path, errored_path):
+    errors = 0
     for file_id in file_ids:
         try:
+            time.sleep(1)
             process_response = requests.post(
                 f"{BASE_URL}/api/v1/knowledge/{collection_id}/file/add",
                 headers=HEADERS,
@@ -58,8 +61,6 @@ def add_files_to_knowledge_base(file_ids, collection_id, completed_path, errored
                     and "Duplicate content detected" in process_response.text
                 ):
                     write_log(f"Duplicate content detected for file ID {file_id}. Skipping...")
-                    with open(errored_path, "a") as f:
-                        f.write(file_id + "\n")
                     continue
                 write_log(f"Failed to add file to knowledge base: {process_response.text}")
                 raise Exception(
@@ -69,6 +70,12 @@ def add_files_to_knowledge_base(file_ids, collection_id, completed_path, errored
             write_log(f"Request failed: {e}")
             with open(errored_path, "a") as f:
                 f.write(file_id + "\n")
+            errors += 1
+            if errors > 5:
+                write_log("Too many errors. Exiting.")
+                exit()
+            write_log(f"Sleeping for {errors} minutes due to errors...")
+            time.sleep(errors*60)
             continue
 
     return
@@ -79,11 +86,12 @@ def upload_files(file_list, uploaded_path, errored_path):
     API_ENDPOINT = "/api/v1/files/"
 
     headers = {**HEADERS}
-
+    errors = 0
     url = f"{BASE_URL}{API_ENDPOINT}"
 
     for file_path in file_list:
         try:
+            time.sleep(1)
             if not os.path.exists(file_path):
                 write_log(f"Error: File not found at {file_path}")
                 exit()
@@ -91,7 +99,7 @@ def upload_files(file_list, uploaded_path, errored_path):
             with open(file_path, "rb") as f:
                 write_log(f"Sending POST request to: {url}")
                 response = requests.post(
-                    url, headers=headers, files={"file": (file_path, f, "text/plain")}
+                    url, headers=headers, files={"file": (file_path, f, 'text/plain')}, timeout=None
                 )
 
                 # --- Handle Response ---
@@ -104,10 +112,12 @@ def upload_files(file_list, uploaded_path, errored_path):
                     write_log(f"File ID: {response_json['id']}")
                     with open(uploaded_path, "a") as f:
                         f.write(response_json["id"] + "\n")
+                    with open(completed_path + ".path", "a") as f:
+                        f.write(file_path + "\n")
                     write_log(f"File uploaded successfully: {file_path}")
                 else:
                     write_log("No file ID found in the response.")
-                    write_log("Response:", response.text)
+                    write_log("Response:" + response.text)
                     if 'stream timeout' in response.text:
                         with open(errored_path, "a") as f:
                             f.write(file_path + "\n")
@@ -118,9 +128,15 @@ def upload_files(file_list, uploaded_path, errored_path):
                 # Raise an exception for bad status codes (4xx or 5xx)
                 response.raise_for_status()
         except Exception as e:
+            errors += 1
             write_log(f"Request failed: {e}")
             with open(errored_path, "a") as f:
                 f.write(file_path + "\n")
+            if errors > 5:
+                write_log("Too many errors. Exiting.")
+                exit()
+            write_log(f"Sleeping for {errors} minutes due to errors...")
+            time.sleep(errors*60)
             continue
 
     return 
@@ -141,10 +157,10 @@ if __name__ == "__main__":
     collection_id = "76ede64d-ce05-4e12-a6da-72cffe5ffe52"
     collection_name = "Finesse-Public"
 
-    completed_path = "completed.txt"
-    errored_path = "errored.txt"
-    file_list_path = "filelist.txt"
-    uploaded_path = "uploaded.txt"
+    completed_path = "owui_completed.txt"
+    errored_path = "owui_errored.txt"
+    file_list_path = "owui_filelist.txt"
+    uploaded_path = "owui_uploaded.txt"
 
     completed = []
     errored = []
@@ -165,10 +181,10 @@ if __name__ == "__main__":
     if os.path.exists(errored_path):
         with open(errored_path, "r") as f:
             errored = f.read().splitlines()
-    if os.path.exists(uploaded_path):
-        with open(uploaded_path, "r") as f:
+    if os.path.exists(completed_path + ".path"):
+        with open(completed_path + ".path", "r") as f:
             uploaded = f.read().splitlines()
-    file_list = [file for file in file_list if file not in completed and file not in errored and file not in uploaded]
+    file_list = [file for file in file_list if file not in uploaded]
     if not file_list:
         write_log("No files to process.")
         exit()
@@ -182,6 +198,7 @@ if __name__ == "__main__":
     if os.path.exists(uploaded_path):
         with open(uploaded_path, "r") as f:
             uploaded = f.read().splitlines()
+    uploaded = [file for file in uploaded if file not in completed]
     add_files_to_knowledge_base(uploaded, collection_id, completed_path, errored_path)
 
     write_log("Upload and processing completed.")
