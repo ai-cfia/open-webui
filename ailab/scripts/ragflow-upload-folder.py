@@ -6,7 +6,7 @@ import time
 
 # Configuration
 BASE_URL = "https://ragflow.inspection.alpha.canada.ca"  # Replace with your Open WebUI URL
-API_KEY = "ragflow-FhYWY5Y2VlMmI3NTExZjBhZWJlYzIyYm"  
+API_KEY = ""  
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 LOG_PATH = "rg_log.txt"
 
