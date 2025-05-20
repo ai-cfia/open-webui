@@ -106,7 +106,7 @@
 	};
 
 	const updateDefaultPermissionsHandler = async (group) => {
-		console.debug(group.permissions);
+		console.log(group.permissions);
 
 		const res = await updateUserDefaultPermissions(localStorage.token, group.permissions).catch(
 			(error) => {

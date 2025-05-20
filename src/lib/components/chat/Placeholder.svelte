@@ -34,8 +34,6 @@
 	export let files = [];
 
 	export let selectedToolIds = [];
-	export let selectedFilterIds = [];
-
 	export let imageGenerationEnabled = false;
 	export let codeInterpreterEnabled = false;
 	export let webSearchEnabled = false;
@@ -194,7 +192,6 @@
 					bind:prompt
 					bind:autoScroll
 					bind:selectedToolIds
-					bind:selectedFilterIds
 					bind:imageGenerationEnabled
 					bind:codeInterpreterEnabled
 					bind:webSearchEnabled

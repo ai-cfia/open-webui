@@ -100,10 +100,10 @@
 					.filter((item) => {
 						if (selectedConnectionType === '') {
 							return true;
-						} else if (selectedConnectionType === 'local') {
-							return item.model?.connection_type === 'local';
-						} else if (selectedConnectionType === 'external') {
-							return item.model?.connection_type === 'external';
+						} else if (selectedConnectionType === 'ollama') {
+							return item.model?.owned_by === 'ollama';
+						} else if (selectedConnectionType === 'openai') {
+							return item.model?.owned_by === 'openai';
 						} else if (selectedConnectionType === 'direct') {
 							return item.model?.direct;
 						}
@@ -118,10 +118,10 @@
 					.filter((item) => {
 						if (selectedConnectionType === '') {
 							return true;
-						} else if (selectedConnectionType === 'local') {
-							return item.model?.connection_type === 'local';
-						} else if (selectedConnectionType === 'external') {
-							return item.model?.connection_type === 'external';
+						} else if (selectedConnectionType === 'ollama') {
+							return item.model?.owned_by === 'ollama';
+						} else if (selectedConnectionType === 'openai') {
+							return item.model?.owned_by === 'openai';
 						} else if (selectedConnectionType === 'direct') {
 							return item.model?.direct;
 						}
@@ -393,7 +393,7 @@
 							class="flex gap-1 w-fit text-center text-sm font-medium rounded-full bg-transparent px-1.5 pb-0.5"
 							bind:this={tagsContainerElement}
 						>
-							{#if (items.find((item) => item.model?.connection_type === 'local') && items.find((item) => item.model?.connection_type === 'external')) || items.find((item) => item.model?.direct) || tags.length > 0}
+							{#if (items.find((item) => item.model?.owned_by === 'ollama') && items.find((item) => item.model?.owned_by === 'openai')) || items.find((item) => item.model?.direct) || tags.length > 0}
 								<button
 									class="min-w-fit outline-none p-1.5 {selectedTag === '' &&
 									selectedConnectionType === ''
@@ -408,25 +408,25 @@
 								</button>
 							{/if}
 
-							{#if items.find((item) => item.model?.connection_type === 'local') && items.find((item) => item.model?.connection_type === 'external')}
+							{#if items.find((item) => item.model?.owned_by === 'ollama') && items.find((item) => item.model?.owned_by === 'openai')}
 								<button
-									class="min-w-fit outline-none p-1.5 {selectedConnectionType === 'local'
+									class="min-w-fit outline-none p-1.5 {selectedConnectionType === 'ollama'
 										? ''
 										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
 									on:click={() => {
 										selectedTag = '';
-										selectedConnectionType = 'local';
+										selectedConnectionType = 'ollama';
 									}}
 								>
 									{$i18n.t('Local')}
 								</button>
 								<button
-									class="min-w-fit outline-none p-1.5 {selectedConnectionType === 'external'
+									class="min-w-fit outline-none p-1.5 {selectedConnectionType === 'openai'
 										? ''
 										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
 									on:click={() => {
 										selectedTag = '';
-										selectedConnectionType = 'external';
+										selectedConnectionType = 'openai';
 									}}
 								>
 									{$i18n.t('External')}

@@ -6,7 +6,6 @@ class OneDriveConfig {
 	private static instance: OneDriveConfig;
 	private clientId: string = '';
 	private sharepointUrl: string = '';
-	private sharepointTenantId: string = '';
 	private msalInstance: PublicClientApplication | null = null;
 	private currentAuthorityType: 'personal' | 'organizations' = 'personal';
 
@@ -49,7 +48,6 @@ class OneDriveConfig {
 
 		const newClientId = config.onedrive?.client_id;
 		const newSharepointUrl = config.onedrive?.sharepoint_url;
-		const newSharepointTenantId = config.onedrive?.sharepoint_tenant_id;
 
 		if (!newClientId) {
 			throw new Error('OneDrive configuration is incomplete');
@@ -57,7 +55,6 @@ class OneDriveConfig {
 
 		this.clientId = newClientId;
 		this.sharepointUrl = newSharepointUrl;
-		this.sharepointTenantId = newSharepointTenantId;
 	}
 
 	public async getMsalInstance(
@@ -67,9 +64,7 @@ class OneDriveConfig {
 
 		if (!this.msalInstance) {
 			const authorityEndpoint =
-				this.currentAuthorityType === 'organizations'
-					? this.sharepointTenantId || 'common'
-					: 'consumers';
+				this.currentAuthorityType === 'organizations' ? 'common' : 'consumers';
 			const msalParams = {
 				auth: {
 					authority: `https://login.microsoftonline.com/${authorityEndpoint}`,
@@ -92,10 +87,6 @@ class OneDriveConfig {
 
 	public getSharepointUrl(): string {
 		return this.sharepointUrl;
-	}
-
-	public getSharepointTenantId(): string {
-		return this.sharepointTenantId;
 	}
 
 	public getBaseUrl(): string {

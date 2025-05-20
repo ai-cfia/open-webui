@@ -1,6 +1,10 @@
 import { OLLAMA_API_BASE_URL } from '$lib/constants';
 
-export const verifyOllamaConnection = async (token: string = '', connection: dict = {}) => {
+export const verifyOllamaConnection = async (
+	token: string = '',
+	url: string = '',
+	key: string = ''
+) => {
 	let error = null;
 
 	const res = await fetch(`${OLLAMA_API_BASE_URL}/verify`, {
@@ -11,7 +15,8 @@ export const verifyOllamaConnection = async (token: string = '', connection: dic
 			'Content-Type': 'application/json'
 		},
 		body: JSON.stringify({
-			...connection
+			url,
+			key
 		})
 	})
 		.then(async (res) => {
@@ -46,7 +51,7 @@ export const getOllamaConfig = async (token: string = '') => {
 			return res.json();
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			if ('detail' in err) {
 				error = err.detail;
 			} else {
@@ -87,7 +92,7 @@ export const updateOllamaConfig = async (token: string = '', config: OllamaConfi
 			return res.json();
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			if ('detail' in err) {
 				error = err.detail;
 			} else {
@@ -119,7 +124,7 @@ export const getOllamaUrls = async (token: string = '') => {
 			return res.json();
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			if ('detail' in err) {
 				error = err.detail;
 			} else {
@@ -154,7 +159,7 @@ export const updateOllamaUrls = async (token: string = '', urls: string[]) => {
 			return res.json();
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			if ('detail' in err) {
 				error = err.detail;
 			} else {
@@ -186,7 +191,7 @@ export const getOllamaVersion = async (token: string, urlIdx?: number) => {
 			return res.json();
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			if ('detail' in err) {
 				error = err.detail;
 			} else {
@@ -218,7 +223,7 @@ export const getOllamaModels = async (token: string = '', urlIdx: null | number 
 			return res.json();
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			if ('detail' in err) {
 				error = err.detail;
 			} else {
@@ -263,7 +268,7 @@ export const generatePrompt = async (token: string = '', model: string, conversa
 			`
 		})
 	}).catch((err) => {
-		console.error(err);
+		console.log(err);
 		if ('detail' in err) {
 			error = err.detail;
 		}
@@ -403,11 +408,11 @@ export const deleteModel = async (token: string, tagName: string, urlIdx: string
 			return res.json();
 		})
 		.then((json) => {
-			console.debug(json);
+			console.log(json);
 			return true;
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			error = err;
 
 			if ('detail' in err) {
@@ -440,7 +445,7 @@ export const pullModel = async (token: string, tagName: string, urlIdx: number |
 			name: tagName
 		})
 	}).catch((err) => {
-		console.error(err);
+		console.log(err);
 		error = err;
 
 		if ('detail' in err) {
@@ -476,7 +481,7 @@ export const downloadModel = async (
 			})
 		}
 	).catch((err) => {
-		console.error(err);
+		console.log(err);
 		error = err;
 
 		if ('detail' in err) {
@@ -507,7 +512,7 @@ export const uploadModel = async (token: string, file: File, urlIdx: string | nu
 			body: formData
 		}
 	).catch((err) => {
-		console.error(err);
+		console.log(err);
 		error = err;
 
 		if ('detail' in err) {

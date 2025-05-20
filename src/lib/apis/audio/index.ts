@@ -15,7 +15,7 @@ export const getAudioConfig = async (token: string) => {
 			return res.json();
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			error = err.detail;
 			return null;
 		});
@@ -52,7 +52,7 @@ export const updateAudioConfig = async (token: string, payload: OpenAIConfigForm
 			return res.json();
 		})
 		.catch((err) => {
-			console.error(err);
+			console.log(err);
 			error = err.detail;
 			return null;
 		});
@@ -83,7 +83,7 @@ export const transcribeAudio = async (token: string, file: File) => {
 		})
 		.catch((err) => {
 			error = err.detail;
-			console.error(err);
+			console.log(err);
 			return null;
 		});
 
@@ -120,7 +120,7 @@ export const synthesizeOpenAISpeech = async (
 		})
 		.catch((err) => {
 			error = err.detail;
-			console.error(err);
+			console.log(err);
 
 			return null;
 		});
@@ -152,7 +152,7 @@ export const getModels = async (token: string = ''): Promise<AvailableModelsResp
 		})
 		.catch((err) => {
 			error = err.detail;
-			console.error(err);
+			console.log(err);
 
 			return null;
 		});
@@ -180,7 +180,7 @@ export const getVoices = async (token: string = '') => {
 		})
 		.catch((err) => {
 			error = err.detail;
-			console.error(err);
+			console.log(err);
 
 			return null;
 		});

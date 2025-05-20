@@ -255,7 +255,7 @@
 		await updateChat();
 	};
 
-	const editMessage = async (messageId, { content, files }, submit = true) => {
+	const editMessage = async (messageId, content, submit = true) => {
 		if (history.messages[messageId].role === 'user') {
 			if (submit) {
 				// New user message
@@ -268,7 +268,7 @@
 					childrenIds: [],
 					role: 'user',
 					content: userPrompt,
-					...(files && { files: files }),
+					...(history.messages[messageId].files && { files: history.messages[messageId].files }),
 					models: selectedModels,
 					timestamp: Math.floor(Date.now() / 1000) // Unix epoch
 				};
@@ -290,7 +290,6 @@
 			} else {
 				// Edit user message
 				history.messages[messageId].content = content;
-				history.messages[messageId].files = files;
 				await updateChat();
 			}
 		} else {

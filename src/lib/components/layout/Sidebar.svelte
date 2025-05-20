@@ -11,7 +11,6 @@
 		chatId,
 		tags,
 		showSidebar,
-		showSearch,
 		mobile,
 		showArchivedChats,
 		pinnedChats,
@@ -49,6 +48,7 @@
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
 	import AddFilesPlaceholder from '../AddFilesPlaceholder.svelte';
+	import SearchInput from './Sidebar/SearchInput.svelte';
 	import Folder from '../common/Folder.svelte';
 	import Plus from '../icons/Plus.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
@@ -58,12 +58,12 @@
 	import ChannelItem from './Sidebar/ChannelItem.svelte';
 	import PencilSquare from '../icons/PencilSquare.svelte';
 	import Home from '../icons/Home.svelte';
-	import MagnifyingGlass from '../icons/MagnifyingGlass.svelte';
-	import SearchModal from './SearchModal.svelte';
 
 	const BREAKPOINT = 768;
 
 	let navElement;
+	let search = '';
+
 	let shiftKey = false;
 
 	let selectedChatId = null;
@@ -174,7 +174,11 @@
 		currentChatPage.set(1);
 		allChatsLoaded = false;
 
-		await chats.set(await getChatList(localStorage.token, $currentChatPage));
+		if (search) {
+			await chats.set(await getChatListBySearchText(localStorage.token, search, $currentChatPage));
+		} else {
+			await chats.set(await getChatList(localStorage.token, $currentChatPage));
+		}
 
 		// Enable pagination
 		scrollPaginationEnabled.set(true);
@@ -187,13 +191,43 @@
 
 		let newChatList = [];
 
-		newChatList = await getChatList(localStorage.token, $currentChatPage);
+		if (search) {
+			newChatList = await getChatListBySearchText(localStorage.token, search, $currentChatPage);
+		} else {
+			newChatList = await getChatList(localStorage.token, $currentChatPage);
+		}
 
 		// once the bottom of the list has been reached (no results) there is no need to continue querying
 		allChatsLoaded = newChatList.length === 0;
 		await chats.set([...($chats ? $chats : []), ...newChatList]);
 
 		chatListLoading = false;
+	};
+
+	let searchDebounceTimeout;
+
+	const searchDebounceHandler = async () => {
+		console.log('search', search);
+		chats.set(null);
+
+		if (searchDebounceTimeout) {
+			clearTimeout(searchDebounceTimeout);
+		}
+
+		if (search === '') {
+			await initChatList();
+			return;
+		} else {
+			searchDebounceTimeout = setTimeout(async () => {
+				allChatsLoaded = false;
+				currentChatPage.set(1);
+				await chats.set(await getChatListBySearchText(localStorage.token, search));
+
+				if ($chats.length === 0) {
+					tags.set(await getAllTags(localStorage.token));
+				}
+			}, 1000);
+		}
 	};
 
 	const importChatHandler = async (items, pinned = false, folderId = null) => {
@@ -432,15 +466,6 @@
 	/>
 {/if}
 
-<SearchModal
-	bind:show={$showSearch}
-	onClose={() => {
-		if ($mobile) {
-			showSidebar.set(false);
-		}
-	}}
-/>
-
 <div
 	bind:this={navElement}
 	id="sidebar"
@@ -626,22 +651,17 @@
 			</div>
 		{/if}
 
-		<div class="px-1.5 flex justify-center text-gray-800 dark:text-gray-200">
-			<button
-				class="grow flex items-center space-x-3 rounded-lg px-2 py-[7px] hover:bg-gray-100 dark:hover:bg-gray-900 transition outline-none"
-				on:click={() => {
-					showSearch.set(true);
-				}}
-				draggable="false"
-			>
-				<div class="self-center">
-					<MagnifyingGlass strokeWidth="2" className="size-[1.1rem]" />
-				</div>
+		<div class="relative {$temporaryChatEnabled ? 'opacity-20' : ''}">
+			{#if $temporaryChatEnabled}
+				<div class="absolute z-40 w-full h-full flex justify-center"></div>
+			{/if}
 
-				<div class="flex self-center translate-y-[0.5px]">
-					<div class=" self-center font-medium text-sm font-primary">{$i18n.t('Search')}</div>
-				</div>
-			</button>
+			<SearchInput
+				bind:value={search}
+				on:input={searchDebounceHandler}
+				placeholder={$i18n.t('Search')}
+				showClearButton={true}
+			/>
 		</div>
 
 		<div
@@ -649,7 +669,7 @@
 				? 'opacity-20'
 				: ''}"
 		>
-			{#if $config?.features?.enable_channels && ($user?.role === 'admin' || $channels.length > 0)}
+			{#if $config?.features?.enable_channels && ($user?.role === 'admin' || $channels.length > 0) && !search}
 				<Folder
 					className="px-2 mt-0.5"
 					name={$i18n.t('Channels')}
@@ -677,6 +697,7 @@
 			{/if}
 
 			<Folder
+				collapsible={!search}
 				className="px-2 mt-0.5"
 				name={$i18n.t('Chats')}
 				onAdd={() => {
@@ -736,7 +757,7 @@
 					<div class="absolute z-40 w-full h-full flex justify-center"></div>
 				{/if}
 
-				{#if $pinnedChats.length > 0}
+				{#if !search && $pinnedChats.length > 0}
 					<div class="flex flex-col space-y-1 rounded-xl">
 						<Folder
 							className=""
@@ -812,7 +833,7 @@
 					</div>
 				{/if}
 
-				{#if folders}
+				{#if !search && folders}
 					<Folders
 						{folders}
 						on:import={(e) => {

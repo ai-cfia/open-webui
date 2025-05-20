@@ -37,7 +37,6 @@ from open_webui.models.tools import Tools
 from open_webui.models.users import UserModel
 from open_webui.utils.plugin import load_tool_module_by_id
 from open_webui.env import (
-    SRC_LOG_LEVELS,
     AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA,
     AIOHTTP_CLIENT_SESSION_TOOL_SERVER_SSL,
 )
@@ -45,7 +44,6 @@ from open_webui.env import (
 import copy
 
 log = logging.getLogger(__name__)
-log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 
 def get_async_tool_function_and_apply_extra_params(
@@ -479,7 +477,7 @@ async def get_tool_server_data(token: str, url: str) -> Dict[str, Any]:
         "specs": convert_openapi_to_tool_payload(res),
     }
 
-    log.info("Fetched data:", data)
+    print("Fetched data:", data)
     return data
 
 
@@ -512,7 +510,7 @@ async def get_tool_servers_data(
     results = []
     for (idx, server, url, _), response in zip(server_entries, responses):
         if isinstance(response, Exception):
-            log.error(f"Failed to connect to {url} OpenAPI tool server")
+            print(f"Failed to connect to {url} OpenAPI tool server")
             continue
 
         results.append(
@@ -622,5 +620,5 @@ async def execute_tool_server(
 
     except Exception as err:
         error = str(err)
-        log.exception("API Request Error:", error)
+        print("API Request Error:", error)
         return {"error": error}

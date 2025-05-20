@@ -104,7 +104,7 @@
 		valves_spec = null;
 
 		if (PIPELINES_LIST.length > 0) {
-			console.debug(selectedPipelinesUrlIdx);
+			console.log(selectedPipelinesUrlIdx);
 			pipelines = await getPipelines(localStorage.token, selectedPipelinesUrlIdx);
 
 			if (pipelines.length > 0) {
@@ -151,7 +151,7 @@
 
 			const res = await uploadPipeline(localStorage.token, file, selectedPipelinesUrlIdx).catch(
 				(error) => {
-					console.error(error);
+					console.log(error);
 					toast.error('Something went wrong :/');
 					return null;
 				}

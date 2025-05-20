@@ -77,12 +77,8 @@
 	};
 	let capabilities = {
 		vision: true,
-		file_upload: true,
-		web_search: true,
-		image_generation: true,
-		code_interpreter: true,
-		citations: true,
-		usage: undefined
+		usage: undefined,
+		citations: true
 	};
 
 	let knowledge = [];

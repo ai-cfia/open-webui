@@ -340,11 +340,6 @@ async def chat_web_search_handler(
         log.exception(e)
         queries = [user_message]
 
-    # Check if generated queries are empty
-    if len(queries) == 1 and queries[0].strip() == "":
-        queries = [user_message]
-
-    # Check if queries are not found
     if len(queries) == 0:
         await event_emitter(
             {
@@ -358,6 +353,8 @@ async def chat_web_search_handler(
         )
         return form_data
 
+    all_results = []
+
     await event_emitter(
         {
             "type": "status",
@@ -369,75 +366,106 @@ async def chat_web_search_handler(
         }
     )
 
-    try:
-        results = await process_web_search(
-            request,
-            SearchForm(queries=queries),
-            user=user,
-        )
-
-        if results:
-            files = form_data.get("files", [])
-
-            if results.get("collection_names"):
-                for col_idx, collection_name in enumerate(
-                    results.get("collection_names")
-                ):
-                    files.append(
-                        {
-                            "collection_name": collection_name,
-                            "name": ", ".join(queries),
-                            "type": "web_search",
-                            "urls": results["filenames"],
-                        }
-                    )
-            elif results.get("docs"):
-                # Invoked when bypass embedding and retrieval is set to True
-                docs = results["docs"]
-                files.append(
-                    {
-                        "docs": docs,
-                        "name": ", ".join(queries),
-                        "type": "web_search",
-                        "urls": results["filenames"],
-                    }
-                )
-
-            form_data["files"] = files
-
-            await event_emitter(
-                {
-                    "type": "status",
-                    "data": {
-                        "action": "web_search",
-                        "description": "Searched {{count}} sites",
-                        "urls": results["filenames"],
-                        "done": True,
-                    },
-                }
+    gathered_results = await asyncio.gather(
+        *(
+            process_web_search(
+                request,
+                SearchForm(**{"query": searchQuery}),
+                user=user,
             )
-        else:
+            for searchQuery in queries
+        ),
+        return_exceptions=True,
+    )
+
+    for searchQuery, results in zip(queries, gathered_results):
+        try:
+            if isinstance(results, Exception):
+                raise Exception(f"Error searching {searchQuery}: {str(results)}")
+
+            if results:
+                all_results.append(results)
+                files = form_data.get("files", [])
+
+                if results.get("collection_names"):
+                    for col_idx, collection_name in enumerate(
+                        results.get("collection_names")
+                    ):
+                        files.append(
+                            {
+                                "collection_name": collection_name,
+                                "name": searchQuery,
+                                "type": "web_search",
+                                "urls": [results["filenames"][col_idx]],
+                            }
+                        )
+                elif results.get("docs"):
+                    # Invoked when bypass embedding and retrieval is set to True
+                    docs = results["docs"]
+
+                    if len(docs) == len(results["filenames"]):
+                        # the number of docs and filenames (urls) should be the same
+                        for doc_idx, doc in enumerate(docs):
+                            files.append(
+                                {
+                                    "docs": [doc],
+                                    "name": searchQuery,
+                                    "type": "web_search",
+                                    "urls": [results["filenames"][doc_idx]],
+                                }
+                            )
+                    else:
+                        # edge case when the number of docs and filenames (urls) are not the same
+                        # this should not happen, but if it does, we will just append the docs
+                        files.append(
+                            {
+                                "docs": results.get("docs", []),
+                                "name": searchQuery,
+                                "type": "web_search",
+                                "urls": results["filenames"],
+                            }
+                        )
+
+                form_data["files"] = files
+        except Exception as e:
+            log.exception(e)
             await event_emitter(
                 {
                     "type": "status",
                     "data": {
                         "action": "web_search",
-                        "description": "No search results found",
+                        "description": 'Error searching "{{searchQuery}}"',
+                        "query": searchQuery,
                         "done": True,
                         "error": True,
                     },
                 }
             )
 
-    except Exception as e:
-        log.exception(e)
+    if all_results:
+        urls = []
+        for results in all_results:
+            if "filenames" in results:
+                urls.extend(results["filenames"])
+
         await event_emitter(
             {
                 "type": "status",
                 "data": {
                     "action": "web_search",
-                    "description": "An error occurred while searching the web",
-                    "queries": queries,
+                    "description": "Searched {{count}} sites",
+                    "urls": urls,
+                    "done": True,
+                },
+            }
+        )
+    else:
+        await event_emitter(
+            {
+                "type": "status",
+                "data": {
+                    "action": "web_search",
+                    "description": "No search results found",
                     "done": True,
                     "error": True,
                 },
@@ -644,9 +672,6 @@ def apply_params_to_form_data(form_data, model):
         if "frequency_penalty" in params and params["frequency_penalty"] is not None:
             form_data["frequency_penalty"] = params["frequency_penalty"]
 
-        if "presence_penalty" in params and params["presence_penalty"] is not None:
-            form_data["presence_penalty"] = params["presence_penalty"]
-
         if "reasoning_effort" in params and params["reasoning_effort"] is not None:
             form_data["reasoning_effort"] = params["reasoning_effort"]
 
@@ -656,7 +681,7 @@ def apply_params_to_form_data(form_data, model):
                     convert_logit_bias_input_to_json(params["logit_bias"])
                 )
             except Exception as e:
-                log.exception(f"Error parsing logit_bias: {e}")
+                print(f"Error parsing logit_bias: {e}")
 
     return form_data
 
@@ -754,12 +779,9 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         raise e
 
     try:
-
         filter_functions = [
             Functions.get_function_by_id(filter_id)
-            for filter_id in get_sorted_filter_ids(
-                request, model, metadata.get("filter_ids", [])
-            )
+            for filter_id in get_sorted_filter_ids(model)
         ]
 
         form_data, flags = await process_filter_functions(
@@ -950,35 +972,7 @@ async def process_chat_response(
         message = message_map.get(metadata["message_id"]) if message_map else None
 
         if message:
-            message_list = get_message_list(message_map, message.get("id"))
-
-            # Remove details tags and files from the messages.
-            # as get_message_list creates a new list, it does not affect
-            # the original messages outside of this handler
-
-            messages = []
-            for message in message_list:
-                content = message.get("content", "")
-                if isinstance(content, list):
-                    for item in content:
-                        if item.get("type") == "text":
-                            content = item["text"]
-                            break
-
-                if isinstance(content, str):
-                    content = re.sub(
-                        r"<details\b[^>]*>.*?<\/details>",
-                        "",
-                        content,
-                        flags=re.S | re.I,
-                    ).strip()
-
-                messages.append(
-                    {
-                        "role": message["role"],
-                        "content": content,
-                    }
-                )
+            messages = get_message_list(message_map, message.get("id"))
 
             if tasks and messages:
                 if TASKS.TITLE_GENERATION in tasks:
@@ -1191,9 +1185,7 @@ async def process_chat_response(
     }
     filter_functions = [
         Functions.get_function_by_id(filter_id)
-        for filter_id in get_sorted_filter_ids(
-            request, model, metadata.get("filter_ids", [])
-        )
+        for filter_id in get_sorted_filter_ids(model)
     ]
 
     # Streaming response

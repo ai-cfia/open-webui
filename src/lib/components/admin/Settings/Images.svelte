@@ -198,14 +198,14 @@
 						2
 					);
 				} catch (e) {
-					console.error(e);
+					console.log(e);
 				}
 			}
 
 			requiredWorkflowNodes = requiredWorkflowNodes.map((node) => {
 				const n = config.comfyui.COMFYUI_WORKFLOW_NODES.find((n) => n.type === node.type) ?? node;
 
-				console.debug(n);
+				console.log(n);
 
 				return {
 					type: n.type,

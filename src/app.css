@@ -24,12 +24,6 @@
 	font-display: swap;
 }
 
-@font-face {
-	font-family: 'Vazirmatn';
-	src: url('/assets/fonts/Vazirmatn-Variable.ttf');
-	font-display: swap;
-}
-
 html {
 	word-break: break-word;
 }
@@ -81,7 +75,7 @@ textarea::placeholder {
 }
 
 .font-primary {
-	font-family: 'Archivo', 'Vazirmatn', sans-serif;
+	font-family: 'Archivo', sans-serif;
 }
 
 .drag-region {
@@ -314,18 +308,10 @@ input[type='number'] {
 .ProseMirror p.is-editor-empty:first-child::before {
 	content: attr(data-placeholder);
 	float: left;
-	/* Below color is from tailwind, and has the proper contrast
-	text-gray-600 from: https://tailwindcss.com/docs/color */
-	color: #676767;
+	color: #adb5bd;
 	pointer-events: none;
 
 	@apply line-clamp-1 absolute;
-}
-
-@media (prefers-color-scheme: dark) {
-	.ProseMirror p.is-editor-empty:first-child::before {
-		color: #757575;
-	}
 }
 
 .ai-autocompletion::after {
