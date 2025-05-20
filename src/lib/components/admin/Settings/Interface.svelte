@@ -2,9 +2,9 @@
 	import { v4 as uuidv4 } from 'uuid';
 	import { toast } from 'svelte-sonner';
 
-	import { getBackendConfig, getModels, getTaskConfig, updateTaskConfig } from '$lib/apis';
+	import { getBackendConfig, getTaskConfig, updateTaskConfig } from '$lib/apis';
 	import { setDefaultPromptSuggestions } from '$lib/apis/configs';
-	import { config, settings, user } from '$lib/stores';
+	import { config, models, settings, user } from '$lib/stores';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 
 	import { banners as _banners } from '$lib/stores';
@@ -15,8 +15,6 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Textarea from '$lib/components/common/Textarea.svelte';
-	import Spinner from '$lib/components/common/Spinner.svelte';
-	import { getBaseModels } from '$lib/apis/models';
 
 	const dispatch = createEventDispatcher();
 
@@ -51,7 +49,6 @@
 	};
 
 	onMount(async () => {
-		await init();
 		taskConfig = await getTaskConfig(localStorage.token);
 
 		promptSuggestions = $config?.default_prompt_suggestions ?? [];
@@ -61,40 +58,9 @@
 	const updateBanners = async () => {
 		_banners.set(await setBanners(localStorage.token, banners));
 	};
-
-	let workspaceModels = null;
-	let baseModels = null;
-
-	let models = null;
-
-	const init = async () => {
-		workspaceModels = await getBaseModels(localStorage.token);
-		baseModels = await getModels(localStorage.token, null, false);
-
-		models = baseModels.map((m) => {
-			const workspaceModel = workspaceModels.find((wm) => wm.id === m.id);
-
-			if (workspaceModel) {
-				return {
-					...m,
-					...workspaceModel
-				};
-			} else {
-				return {
-					...m,
-					id: m.id,
-					name: m.name,
-
-					is_active: true
-				};
-			}
-		});
-
-		console.debug('models', models);
-	};
 </script>
 
-{#if models !== null && taskConfig}
+{#if taskConfig}
 	<form
 		class="flex flex-col h-full justify-between space-y-3 text-sm"
 		on:submit|preventDefault={() => {
@@ -108,8 +74,8 @@
 
 				<hr class=" border-gray-100 dark:border-gray-850 my-2" />
 
-				<div class=" mb-2 font-medium flex items-center">
-					<div class=" text-xs mr-1">{$i18n.t('Task Model')}</div>
+				<div class=" mb-1 font-medium flex items-center">
+					<div class=" text-xs mr-1">{$i18n.t('Set Task Model')}</div>
 					<Tooltip
 						content={$i18n.t(
 							'A task model is used when performing tasks such as generating titles for chats and web search queries'
@@ -134,70 +100,32 @@
 
 				<div class=" mb-2.5 flex w-full gap-2">
 					<div class="flex-1">
-						<div class=" text-xs mb-1">{$i18n.t('Local Task Model')}</div>
+						<div class=" text-xs mb-1">{$i18n.t('Local Models')}</div>
 						<select
 							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							bind:value={taskConfig.TASK_MODEL}
 							placeholder={$i18n.t('Select a model')}
-							on:change={() => {
-								if (taskConfig.TASK_MODEL) {
-									const model = models.find((m) => m.id === taskConfig.TASK_MODEL);
-									if (model) {
-										if (model?.access_control !== null) {
-											toast.error(
-												$i18n.t(
-													'This model is not publicly available. Please select another model.'
-												)
-											);
-										}
-
-										taskConfig.TASK_MODEL = model.id;
-									} else {
-										taskConfig.TASK_MODEL = '';
-									}
-								}
-							}}
 						>
 							<option value="" selected>{$i18n.t('Current Model')}</option>
-							{#each models as model}
+							{#each $models.filter((m) => m.owned_by === 'ollama') as model}
 								<option value={model.id} class="bg-gray-100 dark:bg-gray-700">
 									{model.name}
-									{model?.connection_type === 'local' ? `(${$i18n.t('Local')})` : ''}
 								</option>
 							{/each}
 						</select>
 					</div>
 
 					<div class="flex-1">
-						<div class=" text-xs mb-1">{$i18n.t('External Task Model')}</div>
+						<div class=" text-xs mb-1">{$i18n.t('External Models')}</div>
 						<select
 							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							bind:value={taskConfig.TASK_MODEL_EXTERNAL}
 							placeholder={$i18n.t('Select a model')}
-							on:change={() => {
-								if (taskConfig.TASK_MODEL_EXTERNAL) {
-									const model = models.find((m) => m.id === taskConfig.TASK_MODEL_EXTERNAL);
-									if (model) {
-										if (model?.access_control !== null) {
-											toast.error(
-												$i18n.t(
-													'This model is not publicly available. Please select another model.'
-												)
-											);
-										}
-
-										taskConfig.TASK_MODEL_EXTERNAL = model.id;
-									} else {
-										taskConfig.TASK_MODEL_EXTERNAL = '';
-									}
-								}
-							}}
 						>
 							<option value="" selected>{$i18n.t('Current Model')}</option>
-							{#each models as model}
+							{#each $models as model}
 								<option value={model.id} class="bg-gray-100 dark:bg-gray-700">
 									{model.name}
-									{model?.connection_type === 'local' ? `(${$i18n.t('Local')})` : ''}
 								</option>
 							{/each}
 						</select>
@@ -552,8 +480,4 @@
 			</button>
 		</div>
 	</form>
-{:else}
-	<div class=" h-full w-full flex justify-center items-center">
-		<Spinner />
-	</div>
 {/if}

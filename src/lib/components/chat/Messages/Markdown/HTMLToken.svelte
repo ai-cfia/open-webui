@@ -32,7 +32,6 @@
 				title="Video player"
 				frameborder="0"
 				referrerpolicy="strict-origin-when-cross-origin"
-				controls
 				allowfullscreen
 			></video>
 		{:else}

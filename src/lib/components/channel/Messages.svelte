@@ -51,7 +51,7 @@
 		{#if !top}
 			<Loader
 				on:visible={(e) => {
-					console.info('visible');
+					console.log('visible');
 					if (!messagesLoading) {
 						loadMoreMessages();
 					}

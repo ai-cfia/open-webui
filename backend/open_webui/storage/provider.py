@@ -17,7 +17,6 @@ from open_webui.config import (
     S3_SECRET_ACCESS_KEY,
     S3_USE_ACCELERATE_ENDPOINT,
     S3_ADDRESSING_STYLE,
-    S3_ENABLE_TAGGING,
     GCS_BUCKET_NAME,
     GOOGLE_APPLICATION_CREDENTIALS_JSON,
     AZURE_STORAGE_ENDPOINT,
@@ -141,19 +140,18 @@ class S3StorageProvider(StorageProvider):
     ) -> Tuple[bytes, str]:
         """Handles uploading of the file to S3 storage."""
         _, file_path = LocalStorageProvider.upload_file(file, filename, tags)
-        s3_key = os.path.join(self.key_prefix, filename)
+        tagging = {"TagSet": [{"Key": k, "Value": v} for k, v in tags.items()]}
         try:
+            s3_key = os.path.join(self.key_prefix, filename)
             self.s3_client.upload_file(file_path, self.bucket_name, s3_key)
-            if S3_ENABLE_TAGGING and tags:
-                tagging = {"TagSet": [{"Key": k, "Value": v} for k, v in tags.items()]}
-                self.s3_client.put_object_tagging(
-                    Bucket=self.bucket_name,
-                    Key=s3_key,
-                    Tagging=tagging,
-                )
+            self.s3_client.put_object_tagging(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Tagging=tagging,
+            )
             return (
                 open(file_path, "rb").read(),
-                f"s3://{self.bucket_name}/{s3_key}",
+                "s3://" + self.bucket_name + "/" + s3_key,
             )
         except ClientError as e:
             raise RuntimeError(f"Error uploading file to S3: {e}")
