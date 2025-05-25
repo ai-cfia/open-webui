@@ -67,8 +67,16 @@ class PgvectorClient(VectorDBBase):
             self.session = scoped_session(SessionLocal)
 
         try:
-            # Ensure the pgvector extension is available
-            self.session.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            # Check if pgvector extension is already installed
+            result = self.session.execute(text(
+                "SELECT 1 FROM pg_extension WHERE extname = 'vector';"
+            )).fetchone()
+            
+            if not result:
+                raise Exception(
+                    "pgvector extension is not installed. Please ask your database administrator "
+                    "to run 'CREATE EXTENSION vector;' or use a PostgreSQL service with pgvector pre-installed."
+                )
 
             # Check vector length consistency
             self.check_vector_length()
