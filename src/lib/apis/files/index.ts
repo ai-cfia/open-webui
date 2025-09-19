@@ -1,8 +1,21 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
-export const uploadFile = async (token: string, file: File) => {
+export const uploadFile = async (token: string, file: File, selectedModels: string[] = []) => {
 	const data = new FormData();
 	data.append('file', file);
+
+	// Add selected models as metadata to help determine processing behavior
+	if (selectedModels.length > 0) {
+		const metadata = { selected_models: selectedModels };
+		console.log('[uploadFile] Adding metadata:', metadata);
+		data.append('file_metadata', JSON.stringify(metadata));
+	} else {
+		console.log('[uploadFile] No selectedModels provided');
+	}
+
+	console.log('[uploadFile] selectedModels:', selectedModels);
+	console.log('[uploadFile] file:', file.name);
+
 	let error = null;
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/files/`, {

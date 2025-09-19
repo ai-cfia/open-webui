@@ -10,6 +10,7 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
+    Form,
     HTTPException,
     Request,
     UploadFile,
@@ -28,6 +29,7 @@ from open_webui.models.files import (
     Files,
 )
 from open_webui.models.knowledge import Knowledges
+from open_webui.models.functions import Functions
 
 from open_webui.routers.knowledge import get_knowledge, get_knowledge_list
 from open_webui.routers.retrieval import ProcessFileForm, process_file
@@ -41,6 +43,45 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 
 router = APIRouter()
+
+
+############################
+# Check if selected models should skip RAG processing
+############################
+
+
+def should_skip_rag_processing(selected_models: list) -> bool:
+    """
+    Check if any of the selected models should skip RAG processing.
+    Returns True if RAG processing should be skipped.
+    """
+    log.info(f"[should_skip_rag_processing] Checking models: {selected_models}")
+
+    if not selected_models:
+        log.info("[should_skip_rag_processing] No selected models, allowing RAG processing")
+        return False
+
+    # Define models/pipes that should skip RAG processing
+    # You can add more model IDs here as needed
+    skip_rag_models = [
+        "gc_notify_pipe",  # Your specific pipe (snake_case)
+        # Add other pipe IDs that should skip RAG processing
+    ]
+
+    log.info(f"[should_skip_rag_processing] Skip RAG models list: {skip_rag_models}")
+
+    # Check if any selected model should skip RAG
+    for model_id in selected_models:
+        # Handle manifold pipes (e.g., "GCNotifyPIPE.subpipe")
+        base_model_id = model_id.split('.')[0]
+        log.info(f"[should_skip_rag_processing] Checking model_id: {model_id}, base_model_id: {base_model_id}")
+
+        if base_model_id in skip_rag_models or model_id in skip_rag_models:
+            log.info(f"[should_skip_rag_processing] MATCH FOUND! Skipping RAG processing for model: {model_id}")
+            return True
+
+    log.info("[should_skip_rag_processing] No matches found, allowing RAG processing")
+    return False
 
 
 ############################
@@ -85,12 +126,35 @@ def upload_file(
     request: Request,
     file: UploadFile = File(...),
     user=Depends(get_verified_user),
-    file_metadata: dict = None,
+    file_metadata: str = Form(None),
     process: bool = Query(True),
 ):
     log.info(f"file.content_type: {file.content_type}")
 
+    # Parse file_metadata if it's a string (from FormData)
+    if isinstance(file_metadata, str):
+        try:
+            import json
+            file_metadata = json.loads(file_metadata)
+            log.info(f"Parsed file_metadata: {file_metadata}")
+        except (json.JSONDecodeError, TypeError) as e:
+            log.warning(f"Failed to parse file_metadata: {e}")
+            file_metadata = {}
+
     file_metadata = file_metadata if file_metadata else {}
+    log.info(f"Final file_metadata: {file_metadata}")
+
+    # Check if RAG processing should be skipped based on selected models
+    selected_models = file_metadata.get("selected_models", [])
+    log.info(f"Selected models from metadata: {selected_models}")
+    log.info(f"Initial process flag: {process}")
+
+    if should_skip_rag_processing(selected_models):
+        process = False
+        log.info(f"RAG processing disabled for selected models: {selected_models}")
+    else:
+        log.info(f"RAG processing will continue for models: {selected_models}")
+
     try:
         unsanitized_filename = file.filename
         filename = os.path.basename(unsanitized_filename)
@@ -137,12 +201,15 @@ def upload_file(
                 }
             ),
         )
+        log.info(f"Process flag is: {process}")
         if process:
+            log.info(f"Starting RAG processing for file {id} with content_type: {file.content_type}")
             try:
                 if file.content_type:
                     if file.content_type.startswith("audio/") or file.content_type in {
                         "video/webm"
                     }:
+                        log.info(f"Processing audio/video file: {file.content_type}")
                         file_path = Storage.get_file(file_path)
                         result = transcribe(request, file_path)
 
@@ -159,7 +226,10 @@ def upload_file(
                         "video/ogg",
                         "video/quicktime",
                     ]:
+                        log.info(f"Processing document file: {file.content_type}")
                         process_file(request, ProcessFileForm(file_id=id), user=user)
+                    else:
+                        log.info(f"Skipping processing for media file: {file.content_type}")
                 else:
                     log.info(
                         f"File type {file.content_type} is not provided, but trying to process anyway"
@@ -176,6 +246,8 @@ def upload_file(
                         "error": str(e.detail) if hasattr(e, "detail") else str(e),
                     }
                 )
+        else:
+            log.info(f"RAG processing SKIPPED for file {id} - process flag is False")
 
         if file_item:
             return file_item
