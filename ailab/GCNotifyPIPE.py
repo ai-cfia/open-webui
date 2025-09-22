@@ -71,13 +71,46 @@ class Pipe:
         json_response = self.request_ocr(__files__)
 
         try:
-            # Clear files from metadata to prevent hybrid search
-            if "metadata" in body and "files" in body["metadata"]:
-                body["metadata"]["files"] = []
-
-            return json.dumps(json_response, indent=4)
+            # Return a complete OpenAI-style response to signal completion
+            return {
+                "id": f"chatcmpl-{body.get('model', 'gc_notify_pipe')}",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": f"## OCR Results\n\nExtracted text and data from the uploaded PDF:\n\n```json\n{json.dumps(json_response, indent=2)}\n```"
+                        },
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0
+                }
+            }
         except Exception as e:
-            return f"Error: {e}"
+            return {
+                "id": f"chatcmpl-{body.get('model', 'gc_notify_pipe')}",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": f"Error: {e}"
+                        },
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0
+                }
+            }
 
 
 """
