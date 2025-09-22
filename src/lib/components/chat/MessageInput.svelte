@@ -558,6 +558,16 @@
 				}
 
 				// During the file upload, file content is automatically extracted.
+				// Pass selected models to help determine if RAG processing should be skipped
+				const currentSelectedModels = atSelectedModel?.id ? [atSelectedModel.id] : selectedModels;
+				console.log('[uploadFileHandler] currentSelectedModels:', currentSelectedModels);
+				console.log('[uploadFileHandler] atSelectedModel:', atSelectedModel);
+				console.log('[uploadFileHandler] selectedModels:', selectedModels);
+				console.log('[uploadFileHandler] file:', file.name);
+				metadata = {
+					...metadata,
+					selected_models: currentSelectedModels
+				};
 				const uploadedFile = await uploadFile(localStorage.token, file, metadata);
 
 				if (uploadedFile) {
