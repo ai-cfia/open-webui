@@ -26,12 +26,17 @@ class Pipe:
 
         params = {"det_arch": "linknet_resnet50", "reco_arch": "vitstr_base"}
 
+        # Construct file path: /app/backend/data/uploads/{file_id}_{filename}
+        file_id = file_list[0]["id"]
+        filename = file_list[0]["file"]["filename"]
+        file_path = f"/app/backend/data/uploads/{file_id}_{filename}"
+
         files = [
             (
                 "files",
                 (
                     os.path.basename(file_list[0]["name"]),
-                    open(file_list[0]["file"]["path"], "rb"),
+                    open(file_path, "rb"),
                     "application/pdf",
                 ),
             ),
@@ -58,15 +63,11 @@ class Pipe:
         **kwargs,
     ) -> Union[str, Generator, Iterator]:
         # This is where you can add your custom pipelines like RAG.
-        # print(f"pipe:{__name__}")
-        # print(f"body:{body}")
-        # print(f"__user__:{__user__}")
-        # print(f"__files__:{__files__}")
-        # print(f"kwargs:{kwargs}")
-
         if "user" in body:
-            print(body["user"])
             del body["user"]
+
+        if __files__ is None or len(__files__) == 0:
+            return "No files provided for processing"
 
         json_response = self.request_ocr(__files__)
 

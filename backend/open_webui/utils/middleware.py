@@ -1131,6 +1131,10 @@ async def process_chat_response(
     request, response, form_data, user, metadata, model, events, tasks
 ):
     async def background_tasks_handler():
+        # Skip background tasks (RAG, follow-ups, etc.) for gc_notify_pipe
+        if form_data.get("model") == "gc_notify_pipe":
+            return
+
         messages_map = Chats.get_messages_map_by_chat_id(metadata["chat_id"])
         message = messages_map.get(metadata["message_id"]) if messages_map else None
 
