@@ -51,7 +51,6 @@ class Pipe:
         # print(f"Headers: {response.headers}")
         assert response.status_code == 200
         json_response = response.json()
-        print("Response JSON:", json.dumps(json_response))
         return json_response
 
     def pipe(
