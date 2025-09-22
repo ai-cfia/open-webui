@@ -6,7 +6,10 @@ export const uploadFile = async (token: string, file: File, metadata?: object | 
 	data.append('file', file);
 	if (metadata) {
 		data.append('metadata', JSON.stringify(metadata));
+		console.log('Uploading file with metadata:', metadata);
 	}
+
+	console.log('Uploading file:', file.name);
 
 	let error = null;
 

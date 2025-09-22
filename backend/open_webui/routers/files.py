@@ -34,6 +34,7 @@ from open_webui.models.files import (
     Files,
 )
 from open_webui.models.knowledge import Knowledges
+from open_webui.models.functions import Functions
 
 from open_webui.routers.knowledge import get_knowledge, get_knowledge_list
 from open_webui.routers.retrieval import ProcessFileForm, process_file
@@ -46,6 +47,45 @@ log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 router = APIRouter()
+
+
+############################
+# Check if selected models should skip RAG processing
+############################
+
+
+def should_skip_rag_processing(selected_models: list) -> bool:
+    """
+    Check if any of the selected models should skip RAG processing.
+    Returns True if RAG processing should be skipped.
+    """
+    log.info(f"[should_skip_rag_processing] Checking models: {selected_models}")
+
+    if not selected_models:
+        log.info("[should_skip_rag_processing] No selected models, allowing RAG processing")
+        return False
+
+    # Define models/pipes that should skip RAG processing
+    # You can add more model IDs here as needed
+    skip_rag_models = [
+        "gc_notify_pipe",  # Your specific pipe (snake_case)
+        # Add other pipe IDs that should skip RAG processing
+    ]
+
+    log.info(f"[should_skip_rag_processing] Skip RAG models list: {skip_rag_models}")
+
+    # Check if any selected model should skip RAG
+    for model_id in selected_models:
+        # Handle manifold pipes (e.g., "GCNotifyPIPE.subpipe")
+        base_model_id = model_id.split('.')[0]
+        log.info(f"[should_skip_rag_processing] Checking model_id: {model_id}, base_model_id: {base_model_id}")
+
+        if base_model_id in skip_rag_models or model_id in skip_rag_models:
+            log.info(f"[should_skip_rag_processing] MATCH FOUND! Skipping RAG processing for model: {model_id}")
+            return True
+
+    log.info("[should_skip_rag_processing] No matches found, allowing RAG processing")
+    return False
 
 
 ############################
@@ -172,6 +212,18 @@ def upload_file_handler(
                 detail=ERROR_MESSAGES.DEFAULT("Invalid metadata format"),
             )
     file_metadata = metadata if metadata else {}
+    log.info(f"Parsed file_metadata: {file_metadata}")
+    
+    # Check if RAG processing should be skipped based on selected models
+    selected_models = file_metadata.get("selected_models", [])
+    log.info(f"Selected models from metadata: {selected_models}")
+    log.info(f"Initial process flag: {process}")
+
+    if should_skip_rag_processing(selected_models):
+        process = False
+        log.info(f"RAG processing disabled for selected models: {selected_models}")
+    else:
+        log.info(f"RAG processing will continue for models: {selected_models}")
 
     try:
         unsanitized_filename = file.filename
@@ -252,6 +304,7 @@ def upload_file_handler(
                 )
                 return {"status": True, **file_item.model_dump()}
         else:
+            log.info(f"RAG processing SKIPPED for file {id} - process flag is False")
             if file_item:
                 return file_item
             else:
