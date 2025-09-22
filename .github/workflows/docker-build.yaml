@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - louis-main
+      - v0.6.30
       - dev
     tags:
       - v*
