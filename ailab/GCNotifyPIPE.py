@@ -24,7 +24,7 @@ class Pipe:
     def request_ocr(self, file_list):
         headers = {}
 
-        params = {"det_arch": "linknet_resnet50", "reco_arch": "vitstr_base"}
+        params = {"det_arch": "linknet_resnet50", "reco_arch": "vitstr_base", "pg_start": 1, "pg_end": 2}
 
         # Construct file path: /app/backend/data/uploads/{file_id}_{filename}
         file_id = file_list[0]["id"]
@@ -43,7 +43,7 @@ class Pipe:
         ]
 
         response = requests.post(
-            "http://jibity-doctr:8080/kie/", params=params, files=files, headers=headers
+            "http://jibity-doctr:8080/ocr/", params=params, files=files, headers=headers
         )
 
         # print(f"Status: {response.status_code}")
@@ -69,6 +69,7 @@ class Pipe:
             return "No files provided for processing"
 
         json_response = self.request_ocr(__files__)
+        print(f"OCR Response: {json_response}")
 
         try:
             # Return a complete OpenAI-style response to signal completion
