@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import requests
 import json
+import gc
 
 
 class Pipe:
@@ -197,7 +198,8 @@ class Pipe:
 
                 # Stream the processed entry if callback provided
                 if stream_callback:
-                    stream_callback(f"{final_entry}")
+                    # stream_callback(f"{final_entry}")
+                    stream_callback(".")
                 else:
                     print(f"Processed entry: {final_entry}")
 
@@ -601,7 +603,7 @@ class Pipe:
                 for page_num in range(start_page, end_page + 1):
                     page_index += 1
                     try:
-                        yield f"📄 **Processing page {page_num} ({page_index}/{total_pages})**...\n\n"
+                        yield f"📄 **Processing page {page_num} ({page_index}/{total_pages})**......"
 
                         # Step 1: Get OCR response
                         page_response = self.request_ocr_page(__files__, page_num)
@@ -615,7 +617,7 @@ class Pipe:
                         if requirement_id is None:
                             requirement_id = "unknown"
 
-                        yield f"📋 **Requirement ID:** {requirement_id}\n\n"
+                        yield f"**Requirement ID:** {requirement_id} ......"
 
                         # Show preview of lines
                         # for line in simplified_lines[
@@ -642,7 +644,7 @@ class Pipe:
                             simplified_lines
                         )
 
-                        yield f"✅ **Page {page_num} completed** - {len(df) if df is not None else 0} lines detected\n\n"
+                        yield f"✅ {len(df) if df is not None else 0} lines detected\n\n"
 
                     except Exception as page_error:
                         yield f"⚠️ **Page {page_num} error:** {str(page_error)}\n\n"
@@ -677,11 +679,23 @@ class Pipe:
 
                         # Yield captured processed entries
                         for message in processed_messages:
-                            yield f"{message}\n"
+                            yield f"{message}"
 
-                        yield f"**Analysis Summary:**\n```\n{analysis_summary}\n```\n\n"
+                        yield f"\n**Analysis Summary:**\n```\n{analysis_summary}\n```\n\n"
 
                         total_processed_entries += len(combined_df)
+
+                        # Memory cleanup: Clear processed data for this requirement group
+                        combined_df = None
+                        processed_messages = None
+                        analysis_summary = None
+                        group_data["dataframes"].clear()
+                        group_data["simplified_lines"].clear()
+
+                        # Force garbage collection to free memory immediately
+                        gc.collect()
+
+                        yield f"🧹 **Memory cleanup completed for Requirement ID: {requirement_id}**\n\n"
                     else:
                         yield "**No data available for processing**\n\n"
 
