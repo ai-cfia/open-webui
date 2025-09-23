@@ -56,19 +56,186 @@ class Pipe:
         assert response.status_code == 200
         json_response = response.json()
         return json_response
-    
+
+    def bin_tab_level(self, df) -> pd.DataFrame:
+        """
+        Assign tab levels based on closest bin to x-coordinate for lines matching patterns:
+        - 2 digits + space + letter (e.g., "03 Fish")
+        - 4 digits + space + letter (e.g., "1888 Taxonomic")
+        Other lines get tab_level = -1
+        """
+        if df is None or df.empty:
+            return df
+
+        import re
+
+        # Define bin centers
+        bins = [0.2649, 0.3016, 0.3395, 0.3761, 0.4120]
+        bin_labels = ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5']
+
+        # Initialize tab_level columns
+        df['tab_level'] = -1
+        df['tab_level_binned'] = 'No Level'
+
+        # Pattern for 2 digits + space + letter OR 4 digits + space + letter
+        pattern = r'^(\d{2}|\d{4})\s+[A-Za-z]'
+
+        for idx, row in df.iterrows():
+            text = row.get('text', '')
+            geometry = row.get('geometry', [])
+
+            # Check if text matches the pattern
+            if re.match(pattern, text.strip()):
+                # Extract x-coordinate (first value in geometry)
+                if geometry and len(geometry) > 0:
+                    x_coord = geometry[0]
+
+                    # Find closest bin
+                    closest_bin_idx = min(range(len(bins)), key=lambda i: abs(bins[i] - x_coord))
+
+                    # Assign tab level (0-4) and label
+                    df.at[idx, 'tab_level'] = closest_bin_idx
+                    df.at[idx, 'tab_level_binned'] = bin_labels[closest_bin_idx]
+
+        return df
+
+    def build_hierarchical_stack(self, df) -> list:
+        """
+        Build a hierarchical stack and process tab level 4 entries:
+        1. Find first line with tab_level = 0 that starts with a number, push to stack
+        2. Continue reading until tab_level = 1 that starts with a number, push to stack
+        3. Repeat until tab_level = 3
+        4. Continue reading until tab_level = 4, save the whole line
+        5. Read subsequent rows with tab_level < 0 and append them
+        6. When tab_level >= 0 is found, prepend stack contents and print
+
+        Args:
+            df: DataFrame with tab_level column
+
+        Returns:
+            list: Processed entries with hierarchical context
+        """
+        if df is None or df.empty:
+            return []
+
+        import re
+
+        stack = []
+        target_level = 0
+        max_stack_level = 3
+        processed_entries = []
+
+        # Pattern to match text starting with a number
+        number_pattern = r'^(\d+)'
+
+        # Convert dataframe to list for easier iteration with index tracking
+        df_rows = df.to_dict('records')
+        i = 0
+
+        while i < len(df_rows):
+            row = df_rows[i]
+            tab_level = row.get('tab_level', -1)
+            text = row.get('text', '').strip()
+
+            # Phase 1: Build stack (levels 0-3)
+            if target_level <= max_stack_level and tab_level == target_level:
+                # Check if text starts with a number
+                match = re.match(number_pattern, text)
+                if match:
+                    number = match.group(1)
+                    stack.append(number)
+                    target_level += 1
+
+            # Phase 2: Process tab level 4 and subsequent negative levels
+            elif len(stack) == 4 and tab_level == 4:
+                # Save the whole line for tab level 4
+                level_4_content = text
+                i += 1  # Move to next row
+
+                # Read subsequent rows with tab_level < 0
+                while i < len(df_rows):
+                    next_row = df_rows[i]
+                    next_tab_level = next_row.get('tab_level', -1)
+                    next_text = next_row.get('text', '').strip()
+
+                    if next_tab_level < 0:
+                        # Append negative level content
+                        level_4_content += " " + next_text
+                        i += 1
+                    else:
+                        # Found tab_level >= 0, stop collecting and process
+                        break
+
+                # Prepend stack contents joined by periods
+                stack_prefix = ".".join(stack)
+                final_entry = f"{stack_prefix}.{level_4_content}"
+                processed_entries.append(final_entry)
+                print(f"Processed entry: {final_entry}")
+
+                # Handle stack adjustment for the next iteration
+                if i < len(df_rows):
+                    current_row = df_rows[i]
+                    current_tab_level = current_row.get('tab_level', -1)
+                    current_text = current_row.get('text', '').strip()
+
+                    # Check if the current row starts with a number
+                    match = re.match(number_pattern, current_text)
+                    if match:
+                        number = match.group(1)
+
+                        # Adjust stack based on tab level
+                        if current_tab_level == 3:
+                            # Pop stack once (remove level 3) and push new number
+                            stack = stack[:3]  # Keep levels 0,1,2
+                            stack.append(number)
+                        elif current_tab_level == 2:
+                            # Pop stack twice (remove levels 2,3) and push new number
+                            stack = stack[:2]  # Keep levels 0,1
+                            stack.append(number)
+                        elif current_tab_level == 1:
+                            # Pop stack 3 times (remove levels 1,2,3) and push new number
+                            stack = stack[:1]  # Keep level 0
+                            stack.append(number)
+                        elif current_tab_level == 0:
+                            # Pop stack 4 times (clear stack) and push new number
+                            stack = [number]  # Start fresh with new level 0
+
+                        # Update target_level for next iteration
+                        target_level = len(stack)
+
+                # Continue from current position (don't increment i again)
+                continue
+
+            i += 1
+
+        return processed_entries
+
     def process_dataframe(self, df):
         """Process the DataFrame to extract insights or perform analysis"""
         if df is None or df.empty:
             return "No data available for analysis."
 
-        # Example: Count total words and average confidence
+        # Apply tab level binning
+        df = self.bin_tab_level(df)
+
+        # Build hierarchical stack and process entries
+        processed_entries = self.build_hierarchical_stack(df)
+
         pd.set_option('display.max_columns', None)
         print(f"Dataframe head:\n{df.head(20)}")
+        print(f"Processed hierarchical entries: {len(processed_entries)}")
+
         total_words = len(df)
         avg_confidence = df['confidence'].mean() if 'confidence' in df.columns else 0
 
         summary = f"Total words detected: {total_words}\nAverage confidence: {avg_confidence:.2f}\n"
+        summary += f"Processed hierarchical entries: {len(processed_entries)}\n"
+
+        if processed_entries:
+            summary += "Hierarchical entries:\n"
+            for i, entry in enumerate(processed_entries, 1):
+                summary += f"  {i}. {entry}\n"
+
         return summary
 
     def simplify_ocr_to_lines(self, ocr_response):
