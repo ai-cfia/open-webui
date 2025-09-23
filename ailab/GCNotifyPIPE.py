@@ -30,7 +30,7 @@ class Pipe:
             "det_arch": "linknet_resnet50",
             "reco_arch": "vitstr_base",
             "pg_start": page_num,
-            "pg_end": page_num
+            "pg_end": page_num,
         }
 
         # Construct file path: /app/backend/data/uploads/{file_id}_{filename}
@@ -71,18 +71,18 @@ class Pipe:
 
         # Define bin centers
         bins = [0.2649, 0.3016, 0.3395, 0.3761, 0.4120]
-        bin_labels = ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5']
+        bin_labels = ["Level 1", "Level 2", "Level 3", "Level 4", "Level 5"]
 
         # Initialize tab_level columns
-        df['tab_level'] = -1
-        df['tab_level_binned'] = 'No Level'
+        df["tab_level"] = -1
+        df["tab_level_binned"] = "No Level"
 
         # Pattern for 2 digits + space + letter OR 4 digits + space + letter
-        pattern = r'^(\d{2}|\d{4})\s+[A-Za-z]'
+        pattern = r"^(\d{2}|\d{4})\s+[A-Za-z]"
 
         for idx, row in df.iterrows():
-            text = row.get('text', '')
-            geometry = row.get('geometry', [])
+            text = row.get("text", "")
+            geometry = row.get("geometry", [])
 
             # Check if text matches the pattern
             if re.match(pattern, text.strip()):
@@ -91,17 +91,41 @@ class Pipe:
                     x_coord = geometry[0]
 
                     # Find closest bin
-                    closest_bin_idx = min(range(len(bins)), key=lambda i: abs(bins[i] - x_coord))
+                    closest_bin_idx = min(
+                        range(len(bins)), key=lambda i: abs(bins[i] - x_coord)
+                    )
 
                     # Assign tab level (0-4) and label
-                    df.at[idx, 'tab_level'] = closest_bin_idx
-                    df.at[idx, 'tab_level_binned'] = bin_labels[closest_bin_idx]
+                    df.at[idx, "tab_level"] = closest_bin_idx
+                    df.at[idx, "tab_level_binned"] = bin_labels[closest_bin_idx]
 
         return df
 
-    def build_hierarchical_stack(self, df) -> list:
+    def extract_requirement_id(self, simplified_lines):
         """
-        Build a hierarchical stack and process tab level 4 entries:
+        Extract Requirement ID from simplified lines.
+        Looks for pattern like "Requirement ld: 65568 Version: 7"
+
+        Args:
+            simplified_lines: List of line dictionaries
+
+        Returns:
+            str: Requirement ID if found, None otherwise
+        """
+        import re
+
+        for line in simplified_lines:
+            text = line.get("text", "").strip()
+            # Look for "Requirement ld: <number>" or "Requirement Id: <number>"
+            match = re.search(r"Requirement\s+[Il]d?:\s*(\d+)", text, re.IGNORECASE)
+            if match:
+                return match.group(1)
+
+        return None
+
+    def flatten_hs_codes(self, df, stream_callback=None) -> list:
+        """
+        Flatten HS codes by building a hierarchical stack and processing tab level 4 entries:
         1. Find first line with tab_level = 0 that starts with a number, push to stack
         2. Continue reading until tab_level = 1 that starts with a number, push to stack
         3. Repeat until tab_level = 3
@@ -126,16 +150,16 @@ class Pipe:
         processed_entries = []
 
         # Pattern to match text starting with a number
-        number_pattern = r'^(\d+)'
+        number_pattern = r"^(\d+)"
 
         # Convert dataframe to list for easier iteration with index tracking
-        df_rows = df.to_dict('records')
+        df_rows = df.to_dict("records")
         i = 0
 
         while i < len(df_rows):
             row = df_rows[i]
-            tab_level = row.get('tab_level', -1)
-            text = row.get('text', '').strip()
+            tab_level = row.get("tab_level", -1)
+            text = row.get("text", "").strip()
 
             # Phase 1: Build stack (levels 0-3)
             if target_level <= max_stack_level and tab_level == target_level:
@@ -155,8 +179,8 @@ class Pipe:
                 # Read subsequent rows with tab_level < 0
                 while i < len(df_rows):
                     next_row = df_rows[i]
-                    next_tab_level = next_row.get('tab_level', -1)
-                    next_text = next_row.get('text', '').strip()
+                    next_tab_level = next_row.get("tab_level", -1)
+                    next_text = next_row.get("text", "").strip()
 
                     if next_tab_level < 0:
                         # Append negative level content
@@ -170,13 +194,18 @@ class Pipe:
                 stack_prefix = ".".join(stack)
                 final_entry = f"{stack_prefix}.{level_4_content}"
                 processed_entries.append(final_entry)
-                print(f"Processed entry: {final_entry}")
+
+                # Stream the processed entry if callback provided
+                if stream_callback:
+                    stream_callback(f"{final_entry}")
+                else:
+                    print(f"Processed entry: {final_entry}")
 
                 # Handle stack adjustment for the next iteration
                 if i < len(df_rows):
                     current_row = df_rows[i]
-                    current_tab_level = current_row.get('tab_level', -1)
-                    current_text = current_row.get('text', '').strip()
+                    current_tab_level = current_row.get("tab_level", -1)
+                    current_text = current_row.get("text", "").strip()
 
                     # Check if the current row starts with a number
                     match = re.match(number_pattern, current_text)
@@ -214,7 +243,7 @@ class Pipe:
 
         return processed_entries
 
-    def process_dataframe(self, df):
+    def process_dataframe(self, df, stream_callback=None):
         """Process the DataFrame to extract insights or perform analysis"""
         if df is None or df.empty:
             return "No data available for analysis."
@@ -222,15 +251,15 @@ class Pipe:
         # Apply tab level binning
         df = self.bin_tab_level(df)
 
-        # Build hierarchical stack and process entries
-        processed_entries = self.build_hierarchical_stack(df)
+        # Flatten HS codes and process entries
+        processed_entries = self.flatten_hs_codes(df, stream_callback)
 
-        pd.set_option('display.max_columns', None)
+        pd.set_option("display.max_columns", None)
         print(f"Dataframe head:\n{df.head(20)}")
         print(f"Processed hierarchical entries: {len(processed_entries)}")
 
         total_words = len(df)
-        avg_confidence = df['confidence'].mean() if 'confidence' in df.columns else 0
+        avg_confidence = df["confidence"].mean() if "confidence" in df.columns else 0
 
         summary = f"Total words detected: {total_words}\nAverage confidence: {avg_confidence:.2f}\n"
         summary += f"Processed hierarchical entries: {len(processed_entries)}\n"
@@ -238,7 +267,7 @@ class Pipe:
         if processed_entries:
             summary += "Hierarchical entries:\n"
             for i, entry in enumerate(processed_entries, 1):
-                summary += f"  {i}. {entry}\n"
+                summary += f"{entry}\n"
 
         return summary
 
@@ -259,39 +288,50 @@ class Pipe:
             if isinstance(ocr_response, list) and len(ocr_response) > 0:
                 page_data = ocr_response[0]
 
-                if 'items' in page_data:
-                    for item_idx, item in enumerate(page_data['items']):
-                        if 'blocks' in item:
-                            for block_idx, block in enumerate(item['blocks']):
-                                if 'lines' in block:
-                                    for line_idx, line in enumerate(block['lines']):
-                                        if 'words' in line and line['words']:
+                if "items" in page_data:
+                    for item_idx, item in enumerate(page_data["items"]):
+                        if "blocks" in item:
+                            for block_idx, block in enumerate(item["blocks"]):
+                                if "lines" in block:
+                                    for line_idx, line in enumerate(block["lines"]):
+                                        if "words" in line and line["words"]:
                                             # Sort words by x-coordinate for correct reading order
-                                            sorted_words = sorted(line['words'],
-                                                                 key=lambda w: w.get('geometry', [0])[0] if w.get('geometry') else 0)
+                                            sorted_words = sorted(
+                                                line["words"],
+                                                key=lambda w: w.get("geometry", [0])[0]
+                                                if w.get("geometry")
+                                                else 0,
+                                            )
 
                                             # Extract word texts and confidences
                                             word_texts = []
                                             word_confidences = []
 
                                             for word in sorted_words:
-                                                if 'value' in word:
-                                                    word_texts.append(word['value'])
-                                                    word_confidences.append(word.get('confidence', 0))
+                                                if "value" in word:
+                                                    word_texts.append(word["value"])
+                                                    word_confidences.append(
+                                                        word.get("confidence", 0)
+                                                    )
 
                                             # Use leftmost word's geometry as line geometry
                                             leftmost_word = sorted_words[0]
-                                            line_geometry = leftmost_word.get('geometry', [])
+                                            line_geometry = leftmost_word.get(
+                                                "geometry", []
+                                            )
 
                                             # Create simplified line data
                                             line_data = {
-                                                'text': ' '.join(word_texts),
-                                                'confidence': sum(word_confidences) / len(word_confidences) if word_confidences else 0,
-                                                'geometry': line_geometry,
-                                                'item_id': item_idx,
-                                                'block_id': block_idx,
-                                                'line_id': line_idx,
-                                                'word_count': len(word_texts)
+                                                "text": " ".join(word_texts),
+                                                "confidence": sum(word_confidences)
+                                                / len(word_confidences)
+                                                if word_confidences
+                                                else 0,
+                                                "geometry": line_geometry,
+                                                "item_id": item_idx,
+                                                "block_id": block_idx,
+                                                "line_id": line_idx,
+                                                "word_count": len(word_texts),
                                             }
 
                                             simplified_lines.append(line_data)
@@ -321,18 +361,31 @@ class Pipe:
             return lines
 
         # Sort lines by y-coordinate first
-        sorted_lines = sorted(lines, key=lambda x: x['geometry'][1] if x['geometry'] and len(x['geometry']) > 1 else 0)
+        sorted_lines = sorted(
+            lines,
+            key=lambda x: x["geometry"][1]
+            if x["geometry"] and len(x["geometry"]) > 1
+            else 0,
+        )
 
         combined_lines = []
         current_group = [sorted_lines[0]]
 
         for i in range(1, len(sorted_lines)):
             current_line = sorted_lines[i]
-            previous_line = sorted_lines[i-1]
+            previous_line = sorted_lines[i - 1]
 
             # Get y-coordinates (second value in geometry)
-            current_y = current_line['geometry'][1] if current_line['geometry'] and len(current_line['geometry']) > 1 else 0
-            previous_y = previous_line['geometry'][1] if previous_line['geometry'] and len(previous_line['geometry']) > 1 else 0
+            current_y = (
+                current_line["geometry"][1]
+                if current_line["geometry"] and len(current_line["geometry"]) > 1
+                else 0
+            )
+            previous_y = (
+                previous_line["geometry"][1]
+                if previous_line["geometry"] and len(previous_line["geometry"]) > 1
+                else 0
+            )
 
             # If y-coordinates are within threshold, add to current group
             if abs(current_y - previous_y) <= y_threshold:
@@ -359,7 +412,12 @@ class Pipe:
             return line_group[0]
 
         # Sort by x-coordinate (leftmost first)
-        sorted_group = sorted(line_group, key=lambda x: x['geometry'][0] if x['geometry'] and len(x['geometry']) > 0 else 0)
+        sorted_group = sorted(
+            line_group,
+            key=lambda x: x["geometry"][0]
+            if x["geometry"] and len(x["geometry"]) > 0
+            else 0,
+        )
 
         # Combine text with spaces
         combined_text_parts = []
@@ -368,23 +426,25 @@ class Pipe:
         confidence_count = 0
 
         for line in sorted_group:
-            if line['text'].strip():
-                combined_text_parts.append(line['text'].strip())
-            total_word_count += line['word_count']
-            confidence_sum += line['confidence'] * line['word_count']
-            confidence_count += line['word_count']
+            if line["text"].strip():
+                combined_text_parts.append(line["text"].strip())
+            total_word_count += line["word_count"]
+            confidence_sum += line["confidence"] * line["word_count"]
+            confidence_count += line["word_count"]
 
         # Use leftmost line's geometry and metadata
         base_line = sorted_group[0]
 
         return {
-            'text': ' '.join(combined_text_parts),
-            'confidence': confidence_sum / confidence_count if confidence_count > 0 else 0,
-            'geometry': base_line['geometry'],
-            'item_id': base_line['item_id'],
-            'block_id': base_line['block_id'],
-            'line_id': base_line['line_id'],
-            'word_count': total_word_count
+            "text": " ".join(combined_text_parts),
+            "confidence": confidence_sum / confidence_count
+            if confidence_count > 0
+            else 0,
+            "geometry": base_line["geometry"],
+            "item_id": base_line["item_id"],
+            "block_id": base_line["block_id"],
+            "line_id": base_line["line_id"],
+            "word_count": total_word_count,
         }
 
     def ocr_to_dataframe(self, simplified_lines):
@@ -410,19 +470,18 @@ class Pipe:
             print(f"Error converting simplified lines to DataFrame: {e}")
             return pd.DataFrame()
 
-
     def parse_page_range(self, body):
         """Extract start and end page numbers from the message content"""
         try:
             # Get the user message content
-            messages = body.get('messages', [])
+            messages = body.get("messages", [])
             if not messages:
                 return 1, 1
 
             user_message = None
             for msg in messages:
-                if msg.get('role') == 'user':
-                    user_message = msg.get('content', '')
+                if msg.get("role") == "user":
+                    user_message = msg.get("content", "")
                     break
 
             if not user_message:
@@ -434,8 +493,9 @@ class Pipe:
 
             # Look for start: and end: patterns
             import re
-            start_match = re.search(r'start:\s*(\d+)', user_message, re.IGNORECASE)
-            end_match = re.search(r'end:\s*(\d+)', user_message, re.IGNORECASE)
+
+            start_match = re.search(r"start:\s*(\d+)", user_message, re.IGNORECASE)
+            end_match = re.search(r"end:\s*(\d+)", user_message, re.IGNORECASE)
 
             if start_match:
                 start_page = int(start_match.group(1))
@@ -533,13 +593,10 @@ class Pipe:
                 yield f"📊 **Page range:** Processing pages {start_page} to {end_page} ({total_pages} page{'s' if total_pages > 1 else ''})\n\n"
                 yield "🔄 **Status:** Starting page-by-page OCR analysis...\n\n"
 
-                all_results = {
-                    "page_range": {"start": start_page, "end": end_page},
-                    "pages": [],
-                    "summary": {"total_pages": 0, "total_text": ""}
-                }
+                # Dictionary to group pages by Requirement ID
+                requirement_groups = {}
 
-                # Process each page individually within the specified range
+                # First pass: Extract OCR data and group by Requirement ID
                 page_index = 0
                 for page_num in range(start_page, end_page + 1):
                     page_index += 1
@@ -548,80 +605,95 @@ class Pipe:
 
                         # Step 1: Get OCR response
                         page_response = self.request_ocr_page(__files__, page_num)
-                        # print(f"Page {page_num} OCR Response: {page_response}")
 
                         # Step 2: Simplify to lines
                         simplified_lines = self.simplify_ocr_to_lines(page_response)
-                        for line in simplified_lines:  # Show first 3 lines as preview
-                            yield f"> {line['text']}\n"
 
-                        # Step 3: Convert to DataFrame
+                        # Step 3: Extract Requirement ID
+                        requirement_id = self.extract_requirement_id(simplified_lines)
+
+                        if requirement_id is None:
+                            requirement_id = "unknown"
+
+                        yield f"📋 **Requirement ID:** {requirement_id}\n\n"
+
+                        # Show preview of lines
+                        # for line in simplified_lines[
+                        #     5:10
+                        # ]:  # Show first 3 lines as preview
+                        #     yield f"> {line['text']}\n"
+                        # yield "\n"
+
+                        # Step 4: Convert to DataFrame
                         df = self.ocr_to_dataframe(simplified_lines)
 
-                        # Step 4: Process DataFrame
+                        # Group by requirement ID
+                        if requirement_id not in requirement_groups:
+                            requirement_groups[requirement_id] = {
+                                "pages": [],
+                                "dataframes": [],
+                                "simplified_lines": [],
+                            }
+
+                        requirement_groups[requirement_id]["pages"].append(page_num)
                         if df is not None and not df.empty:
-                            analysis_summary = self.process_dataframe(df)
-                            yield f"✅ **Page {page_num} completed** - {len(df)} lines detected\n\n"
-                            yield f"**Page {page_num} Analysis Summary:**\n```\n{analysis_summary}\n```\n\n"
+                            requirement_groups[requirement_id]["dataframes"].append(df)
+                        requirement_groups[requirement_id]["simplified_lines"].extend(
+                            simplified_lines
+                        )
 
-                        # Store results
-                        page_result = {
-                            "page_number": page_num,
-                            "raw_ocr_data": page_response,
-                            "simplified_lines": simplified_lines,
-                            "dataframe_shape": df.shape if df is not None else (0, 0)
-                        }
-                        all_results["pages"].append(page_result)
-
-                        # # Extract text from the OCR response structure
-                        # text_content = self.extract_text_from_ocr(page_response)
-
-                        # if text_content.strip():
-                        #     all_results["summary"]["total_text"] += text_content + "\n"
-
-                        #     yield f"✅ **Page {page_num} completed** - {len(text_content)} characters extracted\n\n"
-
-                        #     # Show preview of extracted text for this page
-                        #     preview = text_content[:300] if len(text_content) > 300 else text_content
-                        #     yield f"**Page {page_num} text preview:**\n```\n{preview}{'...' if len(text_content) > 300 else ''}\n```\n\n"
-                        # else:
-                        #     yield f"✅ **Page {page_num} completed** - No text detected\n\n"
-
-                        # # Show structured data if present
-                        # elements_count = self.count_ocr_elements(page_response)
-                        # if elements_count > 0:
-                        #     yield f"**Page {page_num} elements:** {elements_count} text blocks detected\n\n"
+                        yield f"✅ **Page {page_num} completed** - {len(df) if df is not None else 0} lines detected\n\n"
 
                     except Exception as page_error:
                         yield f"⚠️ **Page {page_num} error:** {str(page_error)}\n\n"
-                        # Continue with next page
                         continue
 
-                # Update summary
-                all_results["summary"]["total_pages"] = len(all_results["pages"])
+                yield "---\n\n"
+                yield "## 📊 **Processing by Requirement ID**\n\n"
+
+                # Second pass: Process grouped dataframes
+                total_processed_entries = 0
+                for requirement_id, group_data in requirement_groups.items():
+                    yield f"### 🔍 **Requirement ID: {requirement_id}**\n"
+                    yield f"**Page Numbers:** {', '.join(map(str, group_data['pages']))}\n"
+
+                    if group_data["dataframes"]:
+                        # Concatenate all dataframes for this requirement ID
+                        combined_df = pd.concat(
+                            group_data["dataframes"], ignore_index=True
+                        )
+                        yield f"**Combined DataFrame:** {len(combined_df)} total lines\n\n"
+
+                        # Create a list to capture processed entries
+                        processed_messages = []
+
+                        def stream_entry(message):
+                            processed_messages.append(message)
+
+                        # Process combined dataframe with streaming
+                        analysis_summary = self.process_dataframe(
+                            combined_df, stream_entry
+                        )
+
+                        # Yield captured processed entries
+                        for message in processed_messages:
+                            yield f"{message}\n"
+
+                        yield f"**Analysis Summary:**\n```\n{analysis_summary}\n```\n\n"
+
+                        total_processed_entries += len(combined_df)
+                    else:
+                        yield "**No data available for processing**\n\n"
 
                 yield "---\n\n"
-                yield "## 📋 Complete OCR Results\n\n"
-                yield f"**Summary:** {all_results['summary']['total_pages']} pages processed\n\n"
-
-                # Show complete results
-                complete_json = json.dumps(all_results, indent=2)
-                # if len(complete_json) > 30000:
-                #     yield f"**Large document** ({len(complete_json):,} characters)\n\n"
-                #     yield "### 📄 Page-by-page summary:\n"
-                #     for page in all_results["pages"]:
-                #         page_text = str(page["data"].get("text", ""))
-                #         yield f"- **Page {page['page_number']}:** {len(page_text)} characters\n"
-                #     yield "\n"
-
-                yield "### 📊 Complete Results:\n"
-                # yield f"```json\n{complete_json}\n```\n\n"
-
-                yield "🎉 **All pages processed successfully!**"
+                yield "## 📋 **Processing Complete**\n\n"
+                yield f"**Total Requirement IDs:** {len(requirement_groups)}\n"
+                yield f"**Total pages processed:** {page_index}\n"
+                yield f"**Total lines processed:** {total_processed_entries}\n\n"
+                yield "🎉 **All requirements processed successfully!**"
 
             except Exception as e:
                 yield f"❌ **Error occurred:** {str(e)}\n\n"
                 yield "Please check the file format and try again."
 
         return stream_ocr_results()
-
