@@ -322,6 +322,10 @@ def check_model_access(user, model):
             .get("access_control", {}),
         ):
             raise Exception("Model not found")
+    elif model.get("pipeline"):
+        # Pipeline models are from configured pipeline servers and are trusted
+        # Allow access to all users since they're explicitly configured by admins
+        return
     else:
         model_info = Models.get_model_by_id(model.get("id"))
         if not model_info:
